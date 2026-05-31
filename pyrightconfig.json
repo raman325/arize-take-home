@@ -1,0 +1,8 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.12",
+  "extraPaths": ["."],
+  "include": ["weekend_planner", "scripts", "evals"],
+  "exclude": [".venv", "**/__pycache__"]
+}

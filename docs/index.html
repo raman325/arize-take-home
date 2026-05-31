@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Arize AX — PM interview take-home</title>
+  <meta name="description" content="Raman Gupta's PM interview take-home for Arize AX, derived from building an agent app against both AX workflows and capturing friction live." />
+
+  <!--
+    Note on Subresource Integrity (SRI):
+    Neither external resource below carries a stable hash:
+      - Google Fonts CSS is User-Agent-conditioned (woff2 vs woff vs ttf).
+      - Tailwind Play CDN is a runtime JIT that updates with every Tailwind release.
+    Adding `integrity="sha384-..."` to either would break the site on routine
+    upstream updates. The site is a static read-only deliverable with no auth,
+    no form submissions, and no sensitive data.
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,400;9..144,500&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+            serif: ['Fraunces', 'ui-serif', 'Georgia'],
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular'],
+          },
+          colors: {
+            accent: {
+              50: '#faf5ff',
+              500: '#8b5cf6',
+              600: '#7c3aed',
+              700: '#6d28d9',
+            },
+          },
+        },
+      },
+    };
+  </script>
+
+  <style type="text/tailwindcss">
+    /* Plain CSS + Tailwind @apply rules — all in one block so Play CDN's JIT
+       processes the @apply directives AND keeps scanning HTML for utility classes. */
+    html { scroll-behavior: smooth; scroll-padding-top: 1rem; }
+    body { font-feature-settings: "ss01", "cv11"; }
+    .prose-mine h2 { font-family: Fraunces, ui-serif, Georgia; letter-spacing: -0.02em; }
+    .prose-mine h2 { @apply text-3xl md:text-4xl text-zinc-900 mt-16 mb-6 font-medium tracking-tight; }
+    .prose-mine h3 { @apply text-xl md:text-2xl text-zinc-900 mt-10 mb-3 font-semibold tracking-tight; }
+    .prose-mine p, .prose-mine li { @apply text-zinc-700 leading-relaxed; }
+    .prose-mine p, .prose-mine ul, .prose-mine ol { @apply my-4; }
+    .prose-mine a { @apply text-accent-700 underline underline-offset-2 decoration-accent-700/40 hover:decoration-accent-700; }
+    .prose-mine ul { @apply list-disc list-outside ml-6; }
+    .prose-mine ol { @apply list-decimal list-outside ml-6; }
+    .prose-mine code { @apply font-mono text-[0.9em] bg-zinc-100 text-zinc-800 px-1.5 py-0.5 rounded; }
+    .prose-mine pre { @apply font-mono text-sm bg-zinc-900 text-zinc-100 p-4 rounded-lg overflow-x-auto my-6; }
+    .prose-mine pre code { @apply bg-transparent text-zinc-100 p-0; }
+    .prose-mine blockquote { @apply border-l-4 border-accent-500/40 pl-4 italic text-zinc-600 my-6; }
+    .prose-mine table { @apply w-full text-sm my-6 border-collapse; }
+    .prose-mine th { @apply text-left font-semibold text-zinc-900 border-b border-zinc-300 pb-2 pr-4; }
+    .prose-mine td { @apply text-zinc-700 border-b border-zinc-100 py-2 pr-4 align-top; }
+    .prose-mine hr { @apply my-12 border-zinc-200; }
+    .todo { @apply bg-amber-50 border-l-4 border-amber-400 px-4 py-3 my-6 rounded-r text-zinc-700; }
+    .todo strong { @apply text-amber-900; }
+    .badge { @apply inline-flex items-center gap-1.5 text-xs font-medium font-mono px-2 py-0.5 rounded-full uppercase tracking-wider; }
+    .badge-llm { @apply bg-blue-50 text-blue-700; }
+    .badge-tool { @apply bg-emerald-50 text-emerald-700; }
+    .badge-retriever { @apply bg-amber-50 text-amber-700; }
+    .badge-chain { @apply bg-violet-50 text-violet-700; }
+    .badge-agent { @apply bg-rose-50 text-rose-700; }
+    .toc a { @apply block text-sm text-zinc-500 hover:text-accent-700 py-1 leading-snug transition; }
+    .toc a.toc-sub { @apply pl-4 text-zinc-400 hover:text-accent-700; }
+    .toc-section { @apply uppercase tracking-wider text-xs font-semibold text-zinc-400 mt-5 mb-2; }
+    .disclosure { @apply bg-zinc-100/60 border border-zinc-200 rounded-lg px-4 py-3 my-6 text-sm text-zinc-600; }
+    .two-col { @apply grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 my-6; }
+    .two-col h4 { @apply text-xs uppercase tracking-wider font-semibold text-zinc-900 mb-2 font-sans; }
+    .two-col ul { @apply list-disc list-outside ml-5 text-sm space-y-1.5; }
+    .two-col ul li { @apply text-zinc-700 leading-relaxed; }
+    .two-col .col-good h4 { @apply text-emerald-700; }
+    .two-col .col-bad h4 { @apply text-rose-700; }
+    @media print {
+      .no-print { display: none !important; }
+      main { max-width: none; margin: 0; }
+      .prose-mine pre { white-space: pre-wrap; }
+    }
+  </style>
+</head>
+<body class="bg-zinc-50 font-sans text-zinc-900 antialiased">
+
+  <div class="max-w-7xl mx-auto px-6 md:px-10 lg:px-12 py-10 md:py-16 lg:flex lg:gap-12">
+
+    <!-- Sticky TOC sidebar -->
+    <aside class="no-print lg:w-64 lg:flex-none mb-12 lg:mb-0">
+      <div class="lg:sticky lg:top-10">
+        <a href="#top" class="flex items-center gap-2 text-zinc-900 mb-6">
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-accent-500"></span>
+          <span class="font-mono text-xs uppercase tracking-wider text-zinc-500">Arize AX · PM interview take-home</span>
+        </a>
+        <nav class="toc">
+          <div class="toc-section">Proposal</div>
+          <a href="#what-i-built">1 &middot; What I built</a>
+          <a href="#app-in-arize">2 &middot; The app in Arize</a>
+          <a href="#went-vs-didnt">3 &middot; Went well · didn&rsquo;t</a>
+          <a href="#problem-1">4 &middot; Problem · the three-product gap</a>
+          <a href="#feature-2">5 &middot; Feature proposal</a>
+
+          <div class="toc-section">Appendix</div>
+          <a href="#evidence">The reorder bug</a>
+        </nav>
+
+        <div class="mt-8 pt-6 border-t border-zinc-200 text-xs text-zinc-500 leading-relaxed">
+          <p><a href="https://github.com/raman325" class="text-zinc-700 hover:text-accent-700">Raman Gupta</a></p>
+          <p class="mt-1">Built against AX, May 2026.</p>
+          <p class="mt-3"><a href="../README.md" class="text-zinc-700 hover:text-accent-700">Repo README</a> · <a href="../NOTES.md" class="text-zinc-700 hover:text-accent-700">Raw NOTES.md</a> · <a href="../transcripts/session-2026-05-31-build.jsonl" class="text-zinc-700 hover:text-accent-700">Session transcript</a></p>
+        </div>
+      </div>
+    </aside>
+
+    <main id="top" class="flex-1 max-w-3xl prose-mine">
+
+      <!-- Eyebrow -->
+      <section>
+        <p class="font-mono text-xs uppercase tracking-wider text-accent-600">Raman&rsquo;s Arize PM take-home assignment</p>
+      </section>
+
+      <!-- 1. What I built -->
+      <section id="what-i-built">
+        <h2>1 &middot; What I built</h2>
+
+        <p>
+          To test Arize/Phoenix capabilities, I decided to leverage a real-world problem: finding ways to keep my toddler occupied on the weekends. My weekend planner agent suggests an itinerary for my family of three, taking into account my location (Washington, DC), scheduling conflicts, weather, my daughter&rsquo;s age, and her nap window. I then created a dataset of scenarios to test the agent, and ran evaluations through code to score the responses against four criteria:
+        </p>
+
+        <ol>
+          <li><code>no_calendar_conflicts</code> (code) &mdash; no plan slot overlaps an existing calendar event.</li>
+          <li><code>respects_nap_window</code> (code) &mdash; no plan slot overlaps my daughter&rsquo;s nap window.</li>
+          <li><code>pacing_arc</code> (LLM-as-judge) &mdash; the plan has a sensible energy arc: a demanding activity in the morning, something restful after the nap, balanced across Saturday and Sunday.</li>
+          <li><code>retrieval_precision</code> (LLM-as-judge) &mdash; the share of retrieved activities a judge labels actually relevant to the family&rsquo;s request.</li>
+        </ol>
+
+        <div class="disclosure">
+          <strong>Disclosure:</strong> I used Claude Code (Anthropic&rsquo;s coding agent) to help build the app itself &mdash; I directed the architecture and made the product decisions; the agent wrote most of the code under my review. The full <a href="../transcripts/session-2026-05-31-build.jsonl">session transcript is published in the repo</a> (secrets redacted) so the work is fully auditable.
+        </div>
+
+        <h3>The trace shape</h3>
+        <pre><code>weekend_planner_pipeline                 <span class="text-violet-300">(CHAIN)</span>
+├── extract_constraints                  <span class="text-blue-300">(LLM)</span>      family request → structured constraints
+├── weather_lookup                       <span class="text-emerald-300">(TOOL)</span>     scenario_id → forecast
+├── calendar_lookup                      <span class="text-emerald-300">(TOOL)</span>     scenario_id → events
+├── activity_retrieval                   <span class="text-amber-300">(RETRIEVER)</span> query → top-k activities
+├── rank_and_filter                      <span class="text-violet-300">(CHAIN)</span>    filter by age/weather/travel, rank
+└── compose_plan                         <span class="text-rose-300">(AGENT)</span>     autonomous tool-calling loop
+    ├── chat.completions                 <span class="text-blue-300">(LLM)</span>      auto-instrumented
+    ├── activity_retrieval               <span class="text-amber-300">(RETRIEVER)</span> ← when agent invokes its tool
+    │     └── embeddings.create          <span class="text-blue-300">(LLM)</span>      auto-instrumented
+    └── chat.completions                 <span class="text-blue-300">(LLM)</span>      final plan JSON
+</code></pre>
+      </section>
+
+      <!-- 2. The app in Arize -->
+      <section id="app-in-arize">
+        <h2>2 &middot; The app in Arize</h2>
+
+        <p>
+          Two views of the same app inside AX: the live trace structure on the production side, and the dataset + experiment + eval-results view on the development side.
+        </p>
+
+        <figure class="my-8 not-prose">
+          <a href="screenshots/ax_agent_trace_in_arize.png"><img src="screenshots/ax_agent_trace_in_arize.png" alt="The agent's six-step pipeline rendered as a trace tree in Arize AX" class="rounded border border-zinc-200 w-full" loading="lazy" /></a>
+          <figcaption class="text-sm text-zinc-500 mt-2 text-center">Production view: a single agent run rendered as a trace tree. Six children of the root CHAIN, with auto-instrumented LLM calls nested inside the manually-wrapped step spans.</figcaption>
+        </figure>
+
+        <figure class="my-8 not-prose">
+          <a href="screenshots/ax_dataset_experiments.png"><img src="screenshots/ax_dataset_experiments.png" alt="The weekend-planner-scenarios dataset, with 4 experiments listed and 4 eval scores charted across them" class="rounded border border-zinc-200 w-full" loading="lazy" /></a>
+          <figcaption class="text-sm text-zinc-500 mt-2 text-center">Development view: the <code>weekend-planner-scenarios</code> dataset (3 rows), four experiment runs, with the four evaluator scores charted across runs &mdash; <code>no_calendar_conflicts</code>, <code>pacing_arc</code>, <code>respects_nap_window</code>, <code>retrieval_precision</code>.</figcaption>
+        </figure>
+      </section>
+
+      <!-- 3. Went well · didn't -->
+      <section id="went-vs-didnt">
+        <h2>3 &middot; What went well · what didn&rsquo;t</h2>
+
+        <p>
+          Compressed first-pass impressions from the build.
+        </p>
+
+        <div class="two-col">
+          <div class="col-good">
+            <h4>Went well</h4>
+            <ul>
+              <li><strong>Well-documented</strong> &mdash; Claude was able to set up the Arize integration with minimal direction.</li>
+              <li><strong>Experiment results auto-linked to spans</strong> &mdash; the SDK handles span ↔ experiment-run linkage transparently.</li>
+              <li><strong>Custom providers are easy to wire up</strong> &mdash; both my self-hosted LiteLLM instance and Gemini configured cleanly in the Playground.</li>
+              <li><strong>Auto-instrumentation just works</strong> &mdash; latency and token data flowed without any code on my part.</li>
+            </ul>
+          </div>
+          <div class="col-bad">
+            <h4>Didn&rsquo;t</h4>
+            <ul>
+              <li><strong>Phoenix vs Arize self-hosted vs AX</strong> &mdash; confused which to use when, in docs or in packaging. See <a href="#problem-1">Section 4</a>.</li>
+              <li><strong>Code-defined evaluators are invisible in the UI.</strong> My 4 evaluators in <code>evals/</code> show up as columns when an experiment runs, but the UI has no &ldquo;evaluators owned by this project&rdquo; surface.</li>
+              <li><strong>Trace UI bug:</strong> sibling spans reorder during expand interactions. Reproduced live; underlying span data is correct. See the <a href="#evidence">Appendix</a> for a GIF.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. Problem 1 + solution -->
+      <section id="problem-1">
+        <h2>4 &middot; Problem &middot; Phoenix, Arize self-hosted, and AX feel like the same product</h2>
+
+        <p>
+          After shipping a working app against AX, I still couldn&rsquo;t write a one-sentence answer to <em>&ldquo;if I&rsquo;m new and want X, do I install Phoenix or Arize?&rdquo;</em> The boundaries are unclear in two places at once:
+        </p>
+
+        <ul>
+          <li>
+            <strong>In the docs and homepage.</strong> The two products&rsquo; own taglines describe the same activity in nearly the same words:
+            <blockquote class="my-3">
+              <strong>Phoenix:</strong> &ldquo;AI Observability and Evaluation &hellip; send traces, score outputs using evaluation tests, iterate on prompts, optimize with experiments.&rdquo;<br/>
+              <strong>Arize AX:</strong> &ldquo;AI Engineering Platform &hellip; observe, improve, and evaluate AI agents and AI applications with confidence.&rdquo;
+            </blockquote>
+          </li>
+          <li>
+            <strong>In the SDK packaging.</strong> Concrete examples from this build:
+            <ul>
+              <li><strong>Namespacing is confusing:</strong> <code>phoenix.otel</code> ships in <code>arize-phoenix-otel</code>, <code>arize.otel</code> ships in <code>arize-otel</code>, and nothing tells you which to install for AX or how they relate.</li>
+              <li><strong>Code makes boundaries unclear:</strong> a typical AX app pulls imports from <code>phoenix.*</code>, <code>arize.*</code>, and <code>opentelemetry.*</code> in the same file &mdash; they layer on top of each other but the layering isn&rsquo;t legible anywhere.</li>
+            </ul>
+          </li>
+        </ul>
+
+        <p>
+          I infer from OpenInference being the shared underlying spec that span data is portable across Phoenix and Arize, but that portability is hidden behind separate packages and doc sites with no clear handoff.
+        </p>
+
+        <h3>How to address this</h3>
+
+        <p>Two complementary fixes, ordered cheapest first:</p>
+
+        <ol>
+          <li><strong>Add a &ldquo;which Arize?&rdquo; doc.</strong> Decision tree at the top of the AX docs &mdash; Phoenix vs self-hosted vs AX, each leading to its own setup guide.</li>
+          <li><strong>Unify or relabel the packaging.</strong> Consolidate the <code>arize-*</code> + <code>arize-phoenix-*</code> installs into one namespace with optional extras, or rename and cross-link to make the sibling relationship obvious.</li>
+        </ol>
+
+      </section>
+
+      <!-- 5. Feature proposal -->
+      <section id="feature-2">
+        <h2>5 &middot; Feature proposal &middot; Expose code-defined evaluators in the UI</h2>
+
+        <p>
+          My 4 evaluators in <code>evals/</code> generate experiments that I can view in the UI, but the <strong>Evaluator Hub itself is empty.</strong> A teammate landing on the Evaluators page would think this project has no evaluators. The eval columns show up on the Experiments page, but it&rsquo;s a dead end &mdash; no way to reuse them, edit them, or even tell they came from code.
+        </p>
+
+        <figure class="my-6 not-prose no-print">
+          <a href="screenshots/ax_evaluator_hub_empty.png"><img src="screenshots/ax_evaluator_hub_empty.png" alt="The Evaluator Hub showing the empty state even though the project owns 4 code-defined evaluators" class="rounded border border-zinc-200 w-full" loading="lazy" /></a>
+          <figcaption class="text-sm text-zinc-500 mt-2 text-center"><strong>Today:</strong> the Hub is empty despite four code-defined evaluators running in this project.</figcaption>
+        </figure>
+
+        <figure class="my-6 grid grid-cols-1 md:grid-cols-2 gap-3 not-prose no-print">
+          <a href="screenshots/proposed1.png"><img src="screenshots/proposed1.png" alt="Proposed: the Hub list view with code-defined evaluators registered automatically, marked with a badge" class="rounded border border-zinc-200 w-full" loading="lazy" /></a>
+          <a href="screenshots/proposed2.png"><img src="screenshots/proposed2.png" alt="Proposed: the evaluator detail page with a source marker on the versioned entry" class="rounded border border-zinc-200 w-full" loading="lazy" /></a>
+        </figure>
+        <p class="text-sm text-zinc-500"><strong>Proposed:</strong> the SDK auto-registers code-defined evaluators in the Hub (left), with a badge on the list and a source marker on the detail page (right) so users can tell at a glance which entries came from code vs the UI form.</p>
+
+        <p>
+          <strong>Why this drives adoption.</strong> Code-defined evaluators are how serious agent developers actually work &mdash; versioned, reviewable, CI-runnable. AX already has the right surface (Hub, &ldquo;Use from Hub&rdquo; picker, per-experiment scoring) but it only serves users who author through the UI. Bridging the gap means agent developers building real apps see <em>their own code</em> as first-class in AX from day one, instead of &ldquo;a thing the UI doesn&rsquo;t know about.&rdquo; That removes the &ldquo;is AX really for me?&rdquo; friction that surfaces the first time a code-first user opens the Evaluators page and sees an empty list despite running evals in production.
+        </p>
+
+        <p>
+          <strong>Solution.</strong> When <code>experiments.run(evaluators=[...])</code> is called, the SDK introspects each evaluator and POSTs it to the Hub using the exact storage shape AX already accepts from the UI (Python source for Code Evaluators; prompt + choices + model for LLM-As-A-Judge). Code-defined evaluators then show up in the Hub, in the &ldquo;Use from Evaluator Hub&rdquo; picker, and on experiment results &mdash; same first-class treatment as anything authored in the UI. First time the UI acknowledges that the code-eval world exists.
+        </p>
+
+        <p>
+          <strong>Implementation note.</strong> Functionally, the UI already exists. Every field the Hub displays today is populatable from a live Python object &mdash; Name from <code>_name</code>, Created By from the API key&rsquo;s owner, Type from <code>_kind</code>, Description from <code>__doc__</code>, Source from <code>inspect.getsource()</code> &mdash; and the SDK just needs to hit the same internal endpoint the &ldquo;Create Evaluator&rdquo; form already POSTs to. The Hub list, view page, &ldquo;Use from Hub&rdquo; picker, and the experiment ↔ evaluator association all already work. Some minor UI additions are still worth shipping &mdash; a &ldquo;code-defined&rdquo; badge in the Hub list, a source-file or Git ref on the view page &mdash; so users can tell at a glance which evaluators came from code vs the UI form. But that&rsquo;s polish on an existing flow, not a new surface.
+        </p>
+
+        <h3>Architecture</h3>
+        <pre><code><span class="text-zinc-500"># TODAY</span>
+experiments.run(evaluators=[PacingArcEval()])
+   │
+   └─► AX backend
+         ├── stores eval results (columns on experiment)
+         └── <span class="text-rose-300">no Hub entry created — invisible to UI</span>
+
+<span class="text-zinc-500"># PROPOSED</span>
+experiments.run(evaluators=[PacingArcEval()])
+   │
+   ├─► <span class="text-violet-300">SDK introspects</span>
+   │     name        = evaluator._name
+   │     kind        = evaluator._kind          (CODE | LLM)
+   │     description = evaluator.__class__.__doc__
+   │     source      = inspect.getsource(evaluator.__class__)
+   │     rubric      = (for LLM-judge) classifier.{prompt,choices,model}
+   │
+   ├─► <span class="text-violet-300">POST /v1/evaluators</span>  (same endpoint the UI form already uses)
+   │     └─► Hub entry created (or new version, if name exists)
+   │
+   └─► <span class="text-emerald-300">stores eval results AND links experiment ↔ evaluator</span>
+         └─► visible in Hub, &ldquo;Use from Hub&rdquo; picker, view page
+</code></pre>
+
+        <h3>MVP and what&rsquo;s next</h3>
+        <p>
+          <strong>MVP:</strong> the SDK auto-registers code-defined evaluators into the Hub during <code>experiments.run(...)</code>. That ships all of: visibility in the Hub list, attachability via &ldquo;Use from Hub,&rdquo; and the experiment&nbsp;↔&nbsp;evaluator association. One SDK release; no UI work; no schema migration.
+        </p>
+        <p>
+          <strong>Post-MVP, in priority order:</strong> (1) surface &ldquo;used in N experiments, mean score 0.84&rdquo; on the Hub view page so the Hub starts answering &ldquo;is this eval working?&rdquo;; (2) link UI-defined evaluators with the same name as variants of the same concept &mdash; the foundation for side-by-side rubric comparison; (3) ship a structured <code>RubricEvaluator(prompt=..., choices=..., model=...)</code> SDK class so LLM-judge code evaluators can be forked into editable UI templates.
+        </p>
+      </section>
+
+      <hr/>
+
+      <!-- Appendix: the reorder bug -->
+      <section id="evidence">
+        <h2>Appendix &middot; The reorder bug</h2>
+
+        <figure class="my-6 not-prose no-print">
+          <a href="screenshots/ax_trace_reorder_bug.gif"><img src="screenshots/ax_trace_reorder_bug.gif" alt="Recorded screencast of sibling spans reordering as I click around the trace list" class="rounded border border-zinc-200 w-full" loading="lazy" /></a>
+          <figcaption class="text-sm text-zinc-500 mt-2 text-center">Live screen recording of the sibling-reorder bug. Watch the last two rows swap positions as expand chevrons fire.</figcaption>
+        </figure>
+
+        <p>Step-by-step reproduction:</p>
+        <table>
+          <thead><tr><th>Action</th><th>Order of the last two siblings</th></tr></thead>
+          <tbody>
+            <tr><td>Expand the root row</td><td><code>&hellip; RETRIEVER → AGENT compose_plan → CHAIN rank_and_filter</code></td></tr>
+            <tr><td>Click expand on <code>rank_and_filter</code> (CHAIN)</td><td><code>&hellip; → <strong>CHAIN rank</strong> → AGENT compose</code></td></tr>
+            <tr><td>Click expand on <code>compose_plan</code> (AGENT)</td><td><code>&hellip; → <strong>AGENT compose</strong> → (child) → CHAIN rank</code></td></tr>
+          </tbody>
+        </table>
+        <p>
+          Confirmed pure render-side. Fetched the spans via <code>ArizeClient().spans.export_to_df()</code> &mdash; <code>parent_id</code> and <code>start_time</code> are both correct in the underlying data. The renderer is using a non-chronological default sort, and the order shifts as a side-effect of expand interactions.
+        </p>
+
+      </section>
+
+      <footer class="mt-20 pt-8 border-t border-zinc-200 text-sm text-zinc-500 no-print">
+        <p>Built May 2026 for the Arize PM take-home. Hosted from <code>docs/</code> on the repo&rsquo;s main branch via GitHub Pages.</p>
+      </footer>
+
+    </main>
+
+  </div>
+
+</body>
+</html>
